@@ -1,58 +1,71 @@
 interface Difference {
-	type: "CREATE" | "REMOVE" | "CHANGE";
-	path: string[];
-	value?: any;
+  type: "CREATE" | "REMOVE" | "CHANGE";
+  path: string[];
+  value?: unknown;
 }
 const t = true;
 const richTypes = { Date: t, RegExp: t, String: t, Number: t };
 export default function diff(
-	obj: Record<string, any> | any[],
-	newObj: Record<string, any> | any[]
+  objA: Record<string, unknown> | unknown[],
+  objB: Record<string, unknown> | unknown[],
 ): Difference[] {
-	let diffs: Difference[] = [];
-	for (const key in obj) {
-		if (!(key in newObj)) {
-			diffs.push({
-				type: "REMOVE",
-				path: [key],
-			});
-		} else if (
-			obj[key] &&
-			typeof obj[key] === "object" &&
-			!richTypes[Object.getPrototypeOf(obj[key]).constructor.name]
-		) {
-			const nestedDiffs = diff(obj[key], newObj[key]);
-			diffs.push(
-				...nestedDiffs.map((difference) => {
-					difference.path.unshift(key);
-					return difference;
-				})
-			);
-		} else if (
-			obj[key] !== newObj[key] &&
-			!(
-				typeof obj[key] === "object" &&
-				typeof newObj[key] === "object" &&
-				(isNaN(obj[key])
-					? obj[key] + "" === newObj[key] + ""
-					: +obj[key] === +newObj[key])
-			)
-		) {
-			diffs.push({
-				path: [key],
-				type: "CHANGE",
-				value: newObj[key],
-			});
-		}
-	}
-	for (const key in newObj) {
-		if (!(key in obj)) {
-			diffs.push({
-				type: "CREATE",
-				path: [key],
-				value: newObj[key],
-			});
-		}
-	}
-	return diffs;
+  let diffs: Difference[] = [];
+  for (const key in objA) {
+    if (!(key in objB)) {
+      diffs.push({
+        type: "REMOVE",
+        path: [key],
+      });
+      continue;
+    }
+    // Accesssing properties while typically cheap, can add up.
+    // by accessing it only once here we can avoid the cost of future checks.
+    // this reduces the running time by around 5000ns on average for me.
+    const keyObjA = objA[key];
+    const keyObjB = objB[key];
+    if (
+      keyObjA &&
+      typeof keyObjA === "object" &&
+      // https://perf.link/#eyJpZCI6IjVlOTU5ZWJtYzgxIiwidGl0bGUiOiJGaW5kaW5nIG51bWJlcnMgaW4gYW4gYXJyYXkgb2YgMTAwMCIsImJlZm9yZSI6ImNvbnN0IGRhdGEgPSBbXG4gIFN0cmluZyxcbiAgXCJzdHJpbmdcIixcbiAgMTAwLFxuICBjbGFzcyB7IH0sXG4gIG5ldyBjbGFzcyB7IGdldCBmb28oKSB7IHJldHVybiBcImZvb1wiIH0gfSxcbiAgWyAxMCwgMTAgXSxcbiAgL3JlZ2V4cC8sXG5dXG4gICIsInRlc3RzIjpbeyJuYW1lIjoiVGVzdCBDYXNlIiwiY29kZSI6ImRhdGEubWFwKG9iaiA9PiB0eXBlb2Ygb2JqID09PSBcIm9iamVjdFwiID8gUmVmbGVjdC5nZXRQcm90b3R5cGVPZihvYmopIDogbnVsbCkiLCJydW5zIjpbMzQ0MDAwLDg4MTAwMCwxNTIwMDAsMzc1MDAwLDcyMDAwMCwxMDAwLDEwMDYwMDAsODg4MDAwLDUzNjAwMCwxMTQwMDAwLDQwNzAwMCwzNjAwMCw5NzIwMDAsNzQwMDAwLDg0ODAwMCw2NjQwMDAsOTI2MDAwLDExNTAwMCwxNjcwMDAsNjU0MDAwLDc4NTAwMCw5MzEwMDAsMTA5NjAwMCwxMDUxMDAwLDcyODAwMCw3OTQwMDAsNjQ4MDAwLDI4MjAwMCw1MDcwMDAsODkxMDAwLDE1NjAwMCwxMTYwMDAsNTY5MDAwLDE5MjAwMCwxMDgxMDAwLDkzMDAwLDc5NTAwMCwxMDEyMDAwLDMzODAwMCwyNTAwMDAsNjQ5MDAwLDQ2NDAwMCwzMDIwMDAsNzM3MDAwLDY5ODAwMCwxMjUwMDAsODkyMDAwLDI4OTAwMCwxODIwMDAsNTg4MDAwLDM2MDAwMCwzNTgwMDAsODY0MDAwLDQ2MDAwLDQ0NzAwMCwxODUwMDAsOTMzMDAwLDIzNDAwMCwxMDcxMDAwLDczOTAwMCw5NDcwMDAsNDcwMDAwLDEwMDcwMDAsNTUwMDAwLDU4NzAwMCwxMTgwMDAwLDE4ODAwMCw1MzEwMDAsMTA2OTAwMCw2NDcwMDAsMTg0MDAwLDEyMjAwMCw2NzkwMDAsOTUwMDAwLDEwMjcwMDAsOTk2MDAwLDExODAwMCwzOTQwMDAsMTMxMDAwLDU1NzAwMCwzODIwMDAsMTQ0MDAwLDQ3MDAwMCw3OTcwMDAsNDIyMDAwLDIyMzAwMCwzMTkwMDAsNDU3MDAwLDI4OTAwMCw3ODAwMCw0NTkwMDAsMTEyNTAwMCwzNzAwMCw0NDIwMDAsMjY1MDAwLDc4OTAwMCwxMzAwMCw3ODUwMDAsOTc0MDAwLDI4MDAwXSwib3BzIjo1NDg4MjB9LHsibmFtZSI6IkZpbmQgaXRlbSA4MDAiLCJjb2RlIjoiZGF0YS5tYXAob2JqID0%2BIHR5cGVvZiBvYmogPT09IFwib2JqZWN0XCIgPyBPYmplY3QuZ2V0UHJvdG90eXBlT2Yob2JqKSA6IG51bGwpIiwicnVucyI6WzMxNjAwMCw1MzUwMDAsMTEwNDAwMCw4OTYwMDAsNjEwMDAsMTcxMDAwLDI5OTAwMCwyMzAwMCwxOTkwMDAsMjk1MDAwLDI2MzAwMCw2MTIwMDAsNDQ5MDAwLDExNTAwMDAsMTAxMjAwMCwxNDgwMDAsMzY5MDAwLDQ3MjAwMCwxMzEwMDAsMTAzNzAwMCw5NzgwMDAsMzgyMDAwLDg0MDAwMCwzOTIwMDAsODk5MDAwLDEwNDgwMDAsMTcyMDAwLDEzOTAwMCwxMDg4MDAwLDkxMTAwMCw4MDYwMDAsNjc4MDAwLDMxNTAwMCwxNzgwMDAsMzQyMDAwLDEyMDQwMDAsNjc4MDAwLDY5MTAwMCw1NTQwMDAsNzc3MDAwLDgxMDAwMCwxMTQwMDAwLDk3OTAwMCwzNDcwMDAsNDM5MDAwLDY1NjAwMCw5MDkwMDAsODk0MDAwLDg4MTAwMCw1OTEwMDAsMjYwMDAsOTkxMDAwLDQ3MDAwMCw2OTUwMDAsODAyMDAwLDkxNTAwMCw4MjEwMDAsMzQ3MDAwLDcwNDAwMCwxMDYzMDAwLDQ1MTAwMCwzNDQwMDAsMTAxNTAwMCwzMjEwMDAsNTg3MDAwLDQwMjAwMCw1MTMwMDAsMjUxMDAwLDE4NDAwMCwzMDAwLDQ0NjAwMCw0OTYwMDAsOTE4MDAwLDQ1NjAwMCw1MDEwMDAsMTAwMCwxMjYwMDAsNzcwMDAwLDc0ODAwMCw4NTkwMDAsMzUwMDAsNzQ1MDAwLDExMjgwMDAsNDMwMDAsMTA5NzAwMCw2NzYwMDAsMTUwMDAsNjQwMDAsMTAwMCwxMTczMDAwLDgwMDAwMCwyNTQwMDAsNjczMDAwLDEwNzkwMDAsMTE1OTAwMCwyNzIwMDAsNTk2MDAwLDUwNzAwMCwxMDQwMDAwLDU2NDAwMF0sIm9wcyI6NTg0MDcwfV0sInVwZGF0ZWQiOiIyMDIxLTExLTA3VDAxOjI4OjMwLjUwOFoifQ%3D%3D
+      // While not 100% consistent, I've found that `Reflect.getPrototypeOf` is on average a bit faster with less variation than `Object.getPrototypeOf` when testing on chrome.
+      // on firefox I've found `Reflect.getPrototypeOf` to be almost always faster than `Object.getPrototypeOf`, even if not always by a large amount.
+      // `Reflect.getPrototypeOf` has slightly different behavior but given we're already checking if the object is an object, the coercion was never used.
+      // the running time difference isn't that noticable on node/chrome, however on firefox it should be more noticable.
+      !richTypes[Reflect.getPrototypeOf(keyObjA).constructor.name]
+    ) {
+      const nestedDiffs = diff(keyObjA, keyObjB);
+      // Using spreads and iterators in js can be very slow, especially on firefox
+      // By applying here we can avoid the spread.
+      diffs.push.apply(
+        diffs,
+        nestedDiffs.map((difference) => {
+          difference.path.unshift(key);
+          return difference;
+        }),
+      );
+    } else if (
+      keyObjA !== keyObjB &&
+      !(
+        typeof keyObjA === "object" &&
+        typeof keyObjB === "object" &&
+        (isNaN(keyObjA) ? keyObjA + "" === keyObjB + "" : +keyObjA === +keyObjB)
+      )
+    ) {
+      diffs.push({
+        path: [key],
+        type: "CHANGE",
+        value: keyObjB,
+      });
+    }
+  }
+  for (const key in objB) {
+    if (!(key in objA)) {
+      diffs.push({
+        type: "CREATE",
+        path: [key],
+        value: objB[key],
+      });
+    }
+  }
+  return diffs;
 }
