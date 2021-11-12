@@ -1,19 +1,31 @@
-interface Difference {
-  type: "CREATE" | "REMOVE" | "CHANGE";
+export enum DiffType {
+  Create = "create",
+  Remove = "remove",
+  Change = "change",
+}
+
+export type DiffResult = {
+  type: DiffType;
   path: string[];
   value?: unknown;
-}
-const t = true;
-const richTypes = { Date: t, RegExp: t, String: t, Number: t };
-export default function diff(
-  objA: Record<string, unknown> | unknown[],
-  objB: Record<string, unknown> | unknown[],
-): Difference[] {
-  let diffs: Difference[] = [];
+};
+
+const richTypes: Record<string, boolean> = {
+  Date: true,
+  RegExp: true,
+  String: true,
+  Number: true,
+};
+
+export function diff(
+  objA: any | any[],
+  objB: any | any[],
+): DiffResult[] {
+  const diffs: DiffResult[] = [];
   for (const key in objA) {
     if (!(key in objB)) {
       diffs.push({
-        type: "REMOVE",
+        type: DiffType.Remove,
         path: [key],
       });
       continue;
@@ -25,6 +37,10 @@ export default function diff(
     const keyObjB = objB[key];
     const typeofA = typeof keyObjA;
     const typeofB = typeof keyObjB;
+    if (typeof keyObjA === "object" && keyObjA != null) {
+      Reflect.getPrototypeOf(keyObjA);
+    }
+
     if (
       keyObjA && keyObjB &&
       typeofA === "object" && typeofB === "object" &&
@@ -33,7 +49,7 @@ export default function diff(
       // on firefox I've found `Reflect.getPrototypeOf` to be almost always faster than `Object.getPrototypeOf`, even if not always by a large amount.
       // `Reflect.getPrototypeOf` has slightly different behavior but given we're already checking if the object is an object, the coercion was never used.
       // the running time difference isn't that noticable on node/chrome, however on firefox it should be more noticable.
-      !richTypes[Reflect.getPrototypeOf(keyObjA).constructor.name]
+      !richTypes[Reflect.getPrototypeOf(keyObjA)!.constructor.name]
     ) {
       const nestedDiffs = diff(keyObjA, keyObjB);
       // Using spreads and iterators in js can be very slow, especially on firefox
@@ -55,7 +71,7 @@ export default function diff(
     ) {
       diffs.push({
         path: [key],
-        type: "CHANGE",
+        type: DiffType.Change,
         value: keyObjB,
       });
     }
@@ -63,7 +79,7 @@ export default function diff(
   for (const key in objB) {
     if (!(key in objA)) {
       diffs.push({
-        type: "CREATE",
+        type: DiffType.Create,
         path: [key],
         value: objB[key],
       });
